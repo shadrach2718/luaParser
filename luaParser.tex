@@ -1,0 +1,320 @@
+\documentclass{minimal}
+\usepackage{luacode, expl3, tikz}
+
+% this package is just allowing big fonts to use in the tikz pic, no real importance
+\usepackage{lmodern}
+
+
+\begin{luacode*}
+    dofile("luaParser.lua")
+\end{luacode*}
+
+
+
+
+
+
+
+
+
+% First macro, takes the sum of a mandatory argument and an optional argument
+% returns just the mandatory arg if no optional arg is given
+
+\NewDocumentCommand{\sumTwoNumsIntVer}{m m}{%
+  \IfNoValueTF{#2}{#1}{\fpeval{#1 + #2}}
+}
+
+
+
+\NewDocumentCommand{\sumTwoNums}{}{%
+  \directlua{luaParsing.parse("sumTwoNumsIntVer", "m o")}%
+}
+
+
+% Second macro, takes two optional arguments and returns their product
+% Arg #2 defaults to 1, Arg #3 defaults to the value of Arg #2 + 1
+% If a star is present, it chooses to divide instead of multiply
+% Note that the name of the internal macro does not need to be related to the calling macro, but the names should be similar in practical uses for clarity
+
+\NewDocumentCommand{\thisNameCanBeAnything}{mmm}{%
+  \IfBooleanTF{#1}{%
+    \def\exponent{-1}%
+  }{%
+    \def\exponent{1}%
+  }%
+  \fpeval{#2 * ((#3)^\exponent)}%
+}
+
+% Note that two hashtags are required to reference Argument #2
+\NewDocumentCommand{\multiplyTwoNums}{}{%
+  \directlua{luaParsing.parse("thisNameCanBeAnything", "s O{1} O{##2 + 1}")}%
+}
+
+
+
+
+
+
+
+
+
+% ex 1 done
+
+
+
+
+
+
+
+
+
+% First macro, takes in three words and shows their relation
+\NewDocumentCommand{\comparisonWordsNotCalledByUser}{mmm}{
+  The base word is \textbf{#1}, the comparative version is \textbf{#2}, and the superlative version is \textbf{#3}.
+}
+
+
+
+% Note that because the reference to Argument #1 is in a default value, two hashtags must be used
+\NewDocumentCommand{\comparisonWords}{}{%
+  \directlua{luaParsing.parse("comparisonWordsNotCalledByUser", "r() D(){##1er} D(){##1est}")}%
+}
+
+% Second macro, works like the first but in reverse. Takes a superlative form in Arg #2 (represented by (base)est)
+% Prints "(#1): (base)est (#1): (base)er (#1): (base) (#3)"
+% No spaces between arguments are allowed due to the exclaimation mark in the arg specs
+% Defining in expl3 for token list manipulation, the code works perfectly in an expl syntax block
+
+\ExplSyntaxOn
+\tl_new:N \l_baseWord_tl
+
+\cs_new_protected:Npn \comparisonWordsRevInExpl #1#2#3 {
+  % tl_range doesnt expand for some reason, which i learned from writing this
+  \tl_set:Ne \l_baseWord_tl {#1:~ \exp_not:n {\tl_range:nnn {#2}{1}{-4}}}
+  \tl_use:N \l_baseWord_tl
+  \tl_put_left:Nn \l_baseWord_tl {~}
+  \tl_put_right:Nn \l_baseWord_tl {er~}
+  \tl_use:N \l_baseWord_tl
+  \tl_set:Nn \l_tmpb_tl {#1:~#2~#3~}
+  \tl_use:N \l_tmpb_tl
+}
+\ExplSyntaxOff
+
+
+\NewDocumentCommand{\comparisonWordsRev}{}{%
+  \directlua{luaParsing.parse("comparisonWordsRevInExpl", "D<>{Next} r<> !D<>{ Finished.}")}%
+}
+
+
+
+
+
+
+
+
+
+% ex 2 done
+
+
+
+
+
+
+
+
+
+% TikZ time
+% This is the exact macro that I was using when i found the bug
+
+\makeatletter
+
+% as the name suggests, this macro takes in a TikZ point and returns its Cartesian coordinates
+% The macro takes in an optional argument in Argument #2, and stores the Cartesian coords in \(#2)X and \(#2)Y
+% the astute amongst you would notice that i am using standard xparse here...
+% but its not an issue, as getCartesian is only called in a pgfextra block that will not be read by the TikZ parser
+% no need to reinvent the wheel, so we'll save some lines by not running the lua code
+
+\NewDocumentCommand{\getCartesian}{m O{gc}}{%
+  \begingroup
+    \tikz@scan@one@point\pgf@process#1\relax
+    \pgfmathsetmacro\PointX{\pgf@x/1cm}\pgfmathsetmacro\PointY{\pgf@y/1cm}%
+    \edef\GCName{\expandafter\string#2}%
+    \expandafter\xdef\csname\GCName X\endcsname{\PointX}%
+    \expandafter\xdef\csname\GCName Y\endcsname{\PointY}%
+  \endgroup
+}
+
+% This macro takes in a point, an optional angle, and another point to generate a specific type of cubic Bezier path
+% For the visual explaination of what curve this macro generates, i made a desmmos graph of it while playing around
+% https://www.desmos.com/calculator/bz6hypjuv4
+% Essentially, the macro creates a Bezier curve such that the "departure" angle from the first point is 180 degrees from the "arrival" angle to the second point
+
+\NewDocumentCommand{\cBezMain}{mmm}{%
+  \pgfextra{%
+    \getCartesian{(#1)}[pOne]%
+    \getCartesian{(#3)}[pTwo]%
+    \pgfmathsetmacro{\t}{#2}%
+    \pgfmathsetmacro{\bMax}{min(abs(\pOneX-\pTwoX),abs(\pOneY-\pTwoY))}%
+    \pgfmathsetmacro{\cBezCOneX}{\bMax*cos(\t)+(\pOneX)}%
+    \pgfmathsetmacro{\cBezCOneY}{\bMax*sin(\t)+(\pOneY)}%
+    \pgfmathsetmacro{\cBezCTwoX}{-\bMax*cos(\t)+(\pTwoX)}%
+    \pgfmathsetmacro{\cBezCTwoY}{-\bMax*sin(\t)+(\pTwoY)}%
+    \pgfpathmoveto{\pgfpoint{\pOneX cm}{\pOneY cm}}%
+    \pgfpathcurveto%
+      {\pgfpoint{\cBezCOneX cm}{\cBezCOneY cm}}%
+      {\pgfpoint{\cBezCTwoX cm}{\cBezCTwoY cm}}%
+      {\pgfpoint{\pTwoX cm}{\pTwoY cm}}%
+  }%
+}
+
+\makeatother
+
+
+\NewDocumentCommand{\cBez}{}{%
+  \directlua{luaParsing.parse("cBezMain", "r() O{0} r()")}%
+}
+
+
+
+
+
+
+
+
+
+% ex 3 done
+
+
+
+
+
+
+
+
+
+\begin{document}
+
+\textbf{\textit{Example 1:}}
+\vspace{1em}
+
+% Standard use of the first macro
+1. The result of 1 + 2 is \sumTwoNums{1}[2]
+\vspace{1em}
+
+% Argument #2 becomes \NoValue.
+% There are no issues with using the macro in math mode or in a group
+2. The result of 1 + <nothing> is {$\sumTwoNums{1}$}
+\vspace{1em}
+
+% Arguments can reference each other when called in-document, no matter their order
+% Only one hashtag is needed when referencing other arguments in the document
+3. The result of 4 + 4 + 4 is \sumTwoNums{#2 + 4}[4]
+\vspace{1em}
+
+% Standard use of the second macro
+4. The result of 2 * 3 is \multiplyTwoNums[2][3]
+\vspace{1em}
+
+% Argument #3 defaults to the value of Argument #2 plus 1
+5. The result of 7 * 8 is \multiplyTwoNums[7]
+\vspace{1em}
+
+% Argument #2 defaults to 1, Argument #3 defaults to 2
+6. The result of 1 / 2 is \multiplyTwoNums*[1]
+\vspace{1em}
+
+
+
+
+
+
+
+
+
+% ex 1 done
+
+
+
+
+
+
+
+
+
+\newpage
+
+\textbf{\textit{Example 2:}}
+\vspace{1em}
+
+% Standard use
+1. \comparisonWords(fast)
+\vspace{1em}
+
+% Notice that the outermost delimiters only are stripped.
+% Spaces between arguments are ignored, but spaces within arguments are kept
+
+2. \comparisonWords(good) ((better ) )      ((pattern break here!) best)
+\vspace{1em}
+
+% Standard use
+3. \comparisonWordsRev<NextWord><Fastest>< Completed!>
+\vspace{1em}
+
+
+% There is a space between the second and third argument, and the third argument's specification is prefixed with an exclaimation
+% The parser will ignore the third argument and instead use the default value
+4. \comparisonWordsRev<wordz><Quickest> < Completed.>
+\vspace{1em}
+
+% The following line will NOT work
+% Both the mandatory and the optional argument are delimited by <>
+% The parser is unable to tell whether a single argument delimited by <> is teh mandatory or optional argument
+% It will not try to "interpret" what is meant in such a case. There is no way to tell if the lack of a second argument was a mistake or intentional
+% The first <> delimited arg is assigned to the optional argument and then an error is thrown because a mandatory arg is missing
+% To avoid this, do not set the delimiters for optional arguments to be the same as mandatory argument delimiters
+
+5. (would produce an error) % \comparisonWordsRev<Slowest>
+\vspace{1em}
+
+
+% In much the same way, it is impossibe for the parser to tell that the first argument should default rather than the third
+% Which will result in a very skewed output
+6. (Skewed output) \comparisonWordsRev<Slowest>< Done.>
+\vspace{1em}
+
+
+
+
+
+
+
+
+
+% ex 2 done
+
+\newpage
+
+\textbf{\textit{Example 3:}}
+\vspace{1em}
+
+\begin{tikzpicture}
+  \useasboundingbox (0,0) rectangle (10,10);
+  \draw[help lines] (0,0) grid (10,10);
+
+
+  % Standard use
+  % Note that the macro is called in-line where the TikZ parser is already working
+  \draw[line width=7pt] \cBez (0,0) [15] (2.5,10);
+  % makes for a nice integral sign :p
+
+
+  \node[font=\fontsize{35pt}{1pt}\selectfont] (q) at (6,5) {$x^2 dx = \frac13 x^3 + C$};
+
+  % no conflicts with other \draw arguments either
+  \draw[color=red!50, ->, dashed, line width=4pt] \cBez (6,1.2) [150] (10, 4.5);
+
+  \node[font=\fontsize{25pt}{1pt}\selectfont] (z) at (6,1) {Important!};
+
+\end{tikzpicture}
+
+\end{document}
