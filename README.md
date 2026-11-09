@@ -183,12 +183,8 @@ Everything delimited by <> represents a spot where you would put your own names 
     <def>
 }
 
-\directlua{
-    luaParsing.argSpec("<macroName>", "<arg specs>")
-}
-
 \NewDocumentCommand{\<macroName>}{}{%
-  \directlua{luaParsing.parse("<macroName>")}%
+  \directlua{luaParsing.parse("<macroNameInternalVer>", "<arg specs>")}%
 }
 ```
 
@@ -592,4 +588,4 @@ Note on percent signs: You may notice that on the end of most macro declaration 
 
 This project is completely free to use. I am always open to collaboration if anyone happens to be passionate about this code. If you encounter any bugs, send me your usage and I will patch this repo.
 
-AI assistance disclosure: All of the example content (.tex and .pdf files, as well as the alternate solution file) and the README was entirely written by me. All of the core code logic, layout, and commentary was also entirely my own ideas. There were a few instances with very persistent bugs where I used AI to find the source of the issue, but only after I had exhausted every other approach. At an absolute maximum, 5% of the code in the .lua file came from AI. 
+AI assistance disclosure: All of the example content (.tex and .pdf files, as well as the alternate solution file) and the README was entirely written by me, except for the installation section of the README. All of the core code logic, layout, and commentary was also entirely my own ideas. There were a few instances with very persistent bugs where I used AI to find the source of the issue, but only after I had exhausted every other approach. At an absolute maximum, 5% of the code in the .lua file came from AI. 
