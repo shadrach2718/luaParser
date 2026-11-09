@@ -476,6 +476,7 @@ function luaParsingLocal.mainArgParsingLoop(currentArgNum, delimOpen, delimClose
             
         elseif not mandatoryBool and delimCount == 0 and next(defaultValTable) ~= nil then
             -- have to "copy" the table so that auxGatheredTable and refTable dont point to the default values
+            -- took a while + claude's help to debug this one :/
             for i, v in ipairs(defaultValTable) do
                 auxGatheredTable[i] = v
             end
@@ -499,15 +500,4 @@ function luaParsingLocal.mainArgParsingLoop(currentArgNum, delimOpen, delimClose
     until delimCount == 0
 
     return auxGatheredTable, refTable
-end
-
-
-
-
-function tknTb(tlb)
-    local retnStr = ""
-    for _, v in ipairs(tlb) do
-        retnStr = retnStr .. string.char(v.mode)
-    end
-    return retnStr
 end
